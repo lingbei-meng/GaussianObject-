@@ -2,8 +2,6 @@
 
 ### [Project Page](https://gaussianobject.github.io/) | [Paper](https://raw.githubusercontent.com/GaussianObject/gaussianobject.github.io/main/assets/paper.pdf) | [Paper (Compressed)](https://raw.githubusercontent.com/GaussianObject/gaussianobject.github.io/main/assets/paper_compressed.pdf) | [Dataset](https://drive.google.com/drive/folders/1Q5duwHO3jECWK_khLnPM088BxUa3zhko)
 
-**The code will be released in a few days! Please stay tuned!**
-
 We propose GaussianObject, a framework to represent and render the 3D object with Gaussian splatting, that achieves high rendering quality with only **4 input images**.
 
 https://github.com/GaussianObject/GaussianObject/assets/158549428/70ae2443-7a6e-4352-abf4-d3abf79779a3
