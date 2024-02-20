@@ -23,11 +23,11 @@ if __name__ == '__main__':
     parser.add_argument('--image_size', type=int, default=512)
     parser.add_argument('--resolution', type=int, default=4)
     parser.add_argument('--sparse_num', type=int, default=4)
-    parser.add_argument('--gs_dir', type=str, default=f'3dgs-output/remove_outliers/kitchen_sh0_r4')
-    parser.add_argument('--data_dir', type=str, default=f'sparse_nerf_datasets/mip360_v2/kitchen')
-    parser.add_argument('--loo_dir', type=str, default=f'3dgs-output/leave_one_out/remove_outliers/kitchen_sh0_r4')
+    parser.add_argument('--gs_dir', type=str, default=f'output/gs_init/kitchen')
+    parser.add_argument('--data_dir', type=str, default=f'data/mip360/kitchen')
+    parser.add_argument('--loo_dir', type=str, default=f'output/gs_init/kitchen_loo')
     parser.add_argument('--prompt', type=str, default='xxy5syt00')
-    parser.add_argument('--exp_name', type=str, default=f'loo_scheduler/tile_kitchen_5_sh0_no_color_noise@xxy5syt00')
+    parser.add_argument('--exp_name', type=str, default=f'controlnet_finetune/kitchen')
     parser.add_argument('--bg_white', action='store_true', default=False)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--learning_rate', type=float, default=1e-3)
@@ -79,7 +79,6 @@ if __name__ == '__main__':
         add_lora(model.cond_stage_model, lora_config=lora_config)
 
     exp_path = os.path.join('./output', args.exp_name)
-    # dataset = GSDataset(
     dataset = GSCacheDataset(
         args.gs_dir, args.data_dir, args.loo_dir,
         prompt=args.prompt,

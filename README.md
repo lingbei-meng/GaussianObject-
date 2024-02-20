@@ -65,6 +65,12 @@ GaussianObject
 
 `images`, `images_2`, `images_4`, `images_8` and `sparse` are from the original dataset. `masks` is the object mask generated with [SegAnyGAussians](https://github.com/Jumpat/SegAnyGAussians). `zoe_depth` and `zoe_depth_colored` are the depth maps and colored depth maps. `sparse_4.txt`, `sparse_6.txt` and `sparse_9.txt` are train set image ids and `sparse_test.txt` is the test set.
 
+To test GaussianObject with your own dataset, you can manually prepare the dataset with the same directory structure. The depth maps and colored depth maps are generated with
+
+```sh
+python pred_monodepth.py -s <YOUR_DATA_DIR>
+```
+
 ### Python Environment
 
 GaussianObject is tested with Python 3.10. All the required packages are listed in `requirements.txt`. You can install them with
@@ -201,3 +207,7 @@ python render.py \
 ```
 
 The rendering results are saved in `output/gs_init/kitchen/test/ours_None` and `output/gs_init/kitchen/render/ours_None`.
+
+## Acknowledgement
+
+Some code of GaussianObject is based on [3DGS](https://github.com/graphdeco-inria/gaussian-splatting), [threestudio](https://github.com/threestudio-project/threestudio) and [ControlNet](https://github.com/lllyasviel/ControlNet). Thanks for their great work!
