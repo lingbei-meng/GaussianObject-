@@ -201,20 +201,3 @@ python render.py \
 ```
 
 The rendering results are saved in `output/gs_init/kitchen/test/ours_None` and `output/gs_init/kitchen/render/ours_None`.
-
-### Citation
-
-Some code of GaussianObject is based on [3DGS](https://github.com/graphdeco-inria/gaussian-splatting), [threestudio](https://github.com/threestudio-project/threestudio) and [ControlNet](https://github.com/lllyasviel/ControlNet). Thanks for their great work!
-
-If you find GaussianObject useful for your research, please consider citing the following paper:
-
-```text
-@article{yang2024gaussianobject,
-  title   = {GaussainObject: Just Taking Four Images to Get A High-Quality
-             3D Object with Gaussian Splatting},
-  author  = {Chen Yang and Sikuang Li and Jiemin Fang and Ruofan Liang and
-             Lingxi Xie and Xiaopeng Zhang and Wei Shen and Qi Tian},
-  journal = {arXiv preprint arXiv:2402.10259},
-  year    = {2024}
-}
-```
