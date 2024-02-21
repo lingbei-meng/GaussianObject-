@@ -25,7 +25,7 @@ GaussianObject is tested with CUDA 11.7. If you are using a different version, y
 The repository contains submodules. Please clone it with
 
 ```sh
-git clone git@github.com:GaussianObject/GaussianObject.git --recursive
+git clone https://github.com/GaussianObject/GaussianObject.git --recursive
 ```
 
 or update submodules in `GaussianObject` directory with
