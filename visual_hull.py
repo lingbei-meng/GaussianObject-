@@ -248,8 +248,8 @@ if __name__=="__main__":
 
     if not args.not_vis:
         Ts = np.array([i.cpu().numpy() for i in Ts])
-        Ks = np.array(Ks_clone, dtype=object)
-        cameras = ct.camera.create_camera_ray_frames(Ks, Ts, highlight_color_map={0: [1, 0, 0], -1: [0, 1, 0]})
+        Ks = np.array(Ks_clone)
+        cameras = ct.camera.create_camera_frames(Ks, Ts, highlight_color_map={0: [1, 0, 0], -1: [0, 1, 0]})
         # build LineSet to represent the coordinate
         world_coord = o3d.geometry.LineSet()
         world_coord.points = o3d.utility.Vector3dVector(np.array([[0, 0, 0], [2, 0, 0], 
