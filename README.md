@@ -1,6 +1,10 @@
 # GaussianObject: Just Taking Four Images to Get A High-Quality 3D Object with Gaussian Splatting
 
+<div align="center">
+<img src='assets/logo.png' style="height:100px"></img>
+
 ### [Project Page](https://gaussianobject.github.io/) | [Paper](https://raw.githubusercontent.com/GaussianObject/gaussianobject.github.io/main/assets/paper.pdf) | [Paper (Compressed)](https://raw.githubusercontent.com/GaussianObject/gaussianobject.github.io/main/assets/paper_compressed.pdf) | [Dataset](https://drive.google.com/drive/folders/1Q5duwHO3jECWK_khLnPM088BxUa3zhko)
+</div>
 
 We propose GaussianObject, a framework to represent and render the 3D object with Gaussian splatting, that achieves high rendering quality with only **4 input images**.
 
