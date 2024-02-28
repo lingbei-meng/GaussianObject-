@@ -18,6 +18,12 @@ We first introduce techniques of visual hull and floater elimination which expli
 - We use a novel `leave-one-out' strategy and add 3D noise to Gaussians to generate corrupted Gaussian renderings. These renderings, paired with their corresponding reference images, facilitate the training of the Gaussian repair model employing $\mathcal{L}_{\text{tune}}$.
 - Once trained, the Gaussian repair model is frozen and used to correct views that need to be rectified. These views are identified through distance-aware sampling. The repaired images and reference images are used to further optimize 3D Gaussians with $`\mathcal{L}_{\text{rep}}`$ and $`\mathcal{L}_{\text{gs}}`$.
 
+## Colab
+
+ [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1WIZgM--tJ3aq25t9g238JAuAoXrQYVMs?usp=sharing#scrollTo=TlrxF62GNePB)
+
+[Sang Han](https://github.com/jjangsangy) provides a Colab script for GaussianObject in [#9](https://github.com/GaussianObject/GaussianObject/issues/9). Thanks for the contribution of the community! If you are experiencing issues with insufficient GPU VRAM, try this.
+
 ## Setup
 
 ### CUDA
