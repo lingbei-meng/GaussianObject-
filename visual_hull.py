@@ -240,6 +240,19 @@ if __name__=="__main__":
     enlarged_bbox_max = center + scaled_extents / 2
 
     pcd, bbox_new = get_visual_hull(64, [enlarged_bbox_min, enlarged_bbox_max], scene_info, [0,0,0])
+    
+    #随机删除
+    # 计算要删除的随机点的数量
+    num_points = len(pcd.points)
+    num_points_to_remove = int(0.1 * num_points)
+
+    # 创建随机要删除的点的索引
+    random_indices = np.random.choice(num_points, num_points_to_remove, replace=False)
+
+    # 删除随机选择的点
+    pcd.points = o3d.utility.Vector3dVector(np.delete(np.asarray(pcd.points), random_indices, axis=0))
+    pcd.colors = o3d.utility.Vector3dVector(np.delete(np.asarray(pcd.colors), random_indices, axis=0))
+    
     # save the pointcloud
     if args.sparse_id >= 0:
         o3d.io.write_point_cloud(os.path.join(args.data_dir, f"visual_hull_{str(args.sparse_id)}.ply"), pcd)
