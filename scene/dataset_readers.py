@@ -127,7 +127,13 @@ def fetchPly(path):
     plydata = PlyData.read(path)
     vertices = plydata['vertex']
     positions = np.vstack([vertices['x'], vertices['y'], vertices['z']]).T
-    colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']]).T / 255.0
+    #colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']]).T / 255.0
+    # 第二处改动
+    try:
+        colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']]).T / 255.0
+    except:
+        colors = np.vstack([vertices['f_dc_0'], vertices['f_dc_1'], vertices['f_dc_2']]).T / 255.0    
+    
     try:
         normals = np.vstack([vertices['nx'], vertices['ny'], vertices['nz']]).T
     except:

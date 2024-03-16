@@ -88,6 +88,13 @@ class Scene:
             self.render_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.render_cameras, resolution_scale, args)
             print("Loading render cameras with {}s".format(time.time() - init_time3))
 
+        # print(self.loaded_iter, load_ply)
+        # exit()
+        # coarse guass self.loaded_iter, load_ply均为None
+        # 第一处改动，0 mask fine guass 分别为self.loaded_iter, load_ply 做了两次实验
+        # self.loaded_iter = 100000
+        load_ply = '/content/GaussianObject/output/gs_init/kitchen_fine/point_cloud/iteration_10000/point_cloud.ply'
+        
         if self.loaded_iter:
             load_name = "point_cloud.ply"
             self.gaussians.load_ply(os.path.join(self.model_path, "point_cloud", "iteration_" + str(self.loaded_iter), load_name))
