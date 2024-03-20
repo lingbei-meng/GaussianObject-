@@ -228,7 +228,64 @@ class GaussianModel:
 
     def load_ply(self, path, requires_grad: bool = True):
         plydata = PlyData.read(path)
+        print(len(plydata['vertex']))#
+        #exit()
+        from scipy.spatial import KDTree, Voronoi, voronoi_plot_2d
+        from plyfile import PlyElement
+        def farthest_point_sampling(points, M):
+            remaining_points = points.copy()
+            centers = [remaining_points[np.random.randint(len(remaining_points))]]
+            for _ in range(M - 1):
+                dist = np.sum((remaining_points - np.array(centers)[:, None, :])**2, axis=2)
+                farthest_point = remaining_points[np.argmax(np.min(dist, axis=0))]
+                centers.append(farthest_point)
+            return np.array(centers)
 
+        def voronoi_patches(centers, points):
+            vor = Voronoi(centers)
+            tree = KDTree(centers)
+            _, labels = tree.query(points)
+            patches = [points[labels == i] for i in range(len(centers))]
+            return patches
+
+        def random_mask_patches(patches, mask_rate=0.5):
+            masked_points_list = []
+            for patch in patches:
+                mask = np.random.rand(len(patch)) < mask_rate
+                masked_points_list.append(patch[mask])
+            return masked_points_list
+        
+        points = np.column_stack((plydata['vertex']['x'], plydata['vertex']['y'], plydata['vertex']['z']))
+    
+    # FPS to find M center points
+        M = 100
+        centers = farthest_point_sampling(points, M)
+    
+    # Use Voronoi partitions to divide points among centers
+        patches = voronoi_patches(centers, points)
+    
+    # Random mask on patches
+        masked_points_list = random_mask_patches(patches)
+    
+    # Concatenate all masked points from different patches to form new point cloud
+        new_points = np.concatenate(masked_points_list, axis=0)
+    
+    # Create new PLY data
+        #print(new_points[:1])
+        # new_vertex = np.array(new_points, dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
+        # 假设masked_points是一个二维numpy数组，其中每行是一个点的坐标(x, y, z)
+        # 这里直接将masked_points作为新点保存了下来，所以mask_rate要高一点
+        new_vertex = np.array([(point[0], point[1], point[2]) for point in new_points], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
+
+        new_plydata = PlyData([PlyElement.describe(new_vertex, 'vertex')], text=True)
+        plydata = new_plydata
+        # 定义要保存的新PLY文件的路径
+        new_ply_path = '/home/disk2/mlb/2024my_research/GaussianObject/output/gs_init/patch_mask.ply'
+
+        # 使用PlyData.write方法保存new_plydata到文件
+        new_plydata.write(new_ply_path)
+        print(len(plydata['vertex']))#
+        # exit()
         xyz = np.stack((np.asarray(plydata.elements[0]["x"]),
                         np.asarray(plydata.elements[0]["y"]),
                         np.asarray(plydata.elements[0]["z"])),  axis=1)
