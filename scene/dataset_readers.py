@@ -26,6 +26,7 @@ from scene.gaussian_model import BasicPointCloud
 from utils.graphics_utils import focal2fov, getWorld2View2, transform_pcd
 from utils.image_utils import load_meshlab_file
 from utils.camera_utils import transform_cams, CameraInfo, generate_ellipse_path_from_camera_infos
+from utils.sh_utils import RGB2SH, SH2RGB
 
 
 class SceneInfo(NamedTuple):
@@ -123,22 +124,56 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, extra_opts=
     sys.stdout.write('\n')
     return cam_infos
 
+# def fetchPly(path):
+#     plydata = PlyData.read(path)
+#     vertices = plydata['vertex']
+#     positions = np.vstack([vertices['x'], vertices['y'], vertices['z']]).T
+#     colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']]).T / 255.0
+#     try:
+#         normals = np.vstack([vertices['nx'], vertices['ny'], vertices['nz']]).T
+#     except:
+#         normals = np.zeros_like(positions)
+#     return BasicPointCloud(points=positions, colors=colors, normals=normals)
+
+# def fetchPly(path):
+#     plydata = PlyData.read(path)
+#     vertices = plydata['vertex']
+#     # print("*******")
+#     # print(path)
+#     # print(vertices)
+#     # exit()
+#     positions = np.vstack([vertices['x'], vertices['y'], vertices['z']]).T
+#     colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']]).T
+#     # print(colors)
+#     colors = colors / 255.0
+#     # print(colors)
+#     # exit()
+#     # try:
+#     #     colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']]).T / 255.0
+#     # except:
+#     #     colors = np.vstack([vertices['f_dc_0'], vertices['f_dc_1'], vertices['f_dc_2']]).T / 255.0    
+    
+#     try:
+#         normals = np.vstack([vertices['nx'], vertices['ny'], vertices['nz']]).T
+#     except:
+#         normals = np.zeros_like(positions)
+#     return BasicPointCloud(points=positions, colors=colors, normals=normals)
+
 def fetchPly(path):
     plydata = PlyData.read(path)
     vertices = plydata['vertex']
     positions = np.vstack([vertices['x'], vertices['y'], vertices['z']]).T
-    #colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']]).T / 255.0
-    # 第二处改动
     try:
         colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']]).T / 255.0
     except:
-        colors = np.vstack([vertices['f_dc_0'], vertices['f_dc_1'], vertices['f_dc_2']]).T / 255.0    
+        colors = np.vstack([SH2RGB(vertices['f_dc_0']), SH2RGB(vertices['f_dc_1']), SH2RGB(vertices['f_dc_2'])]).T
     
     try:
         normals = np.vstack([vertices['nx'], vertices['ny'], vertices['nz']]).T
     except:
         normals = np.zeros_like(positions)
     return BasicPointCloud(points=positions, colors=colors, normals=normals)
+
 
 def storePly(path, xyz, rgb):
     # Define the dtype for the structured array
@@ -158,6 +193,8 @@ def storePly(path, xyz, rgb):
     ply_data.write(path)
 
 def readColmapSceneInfo(path, images, eval, llffhold=8, extra_opts=None):
+    # print(path)
+    # exit()
     try:
         cameras_extrinsic_file = osp.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = osp.join(path, "sparse/0", "cameras.bin")
@@ -199,6 +236,9 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, extra_opts=None):
     except:
         pcd = None
 
+    # print(ply_path)
+    # exit()
+
     if hasattr(extra_opts, 'sparse_view_num') and extra_opts.sparse_view_num > 0: # means sparse setting
         assert eval == False
         assert osp.exists(osp.join(path, f"sparse_{str(extra_opts.sparse_view_num)}.txt")), "sparse_id.txt not found!"
@@ -210,14 +250,34 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, extra_opts=None):
 
     # NOTE in sparse condition, we may use random points to initialize the gaussians
     if hasattr(extra_opts, 'init_pcd_name'):
+        # print("init")
         if extra_opts.init_pcd_name == 'origin':
             pass # None just skip, use better init.
         elif extra_opts.init_pcd_name == 'random':
             raise NotImplementedError
         else:
+            # print(path)
+            # print(ext)
+            # exit()
             # use specific pointcloud, direct load it
             pcd = fetchPly(osp.join(path, extra_opts.init_pcd_name if extra_opts.init_pcd_name.endswith(".ply") 
                                         else extra_opts.init_pcd_name + ".ply"))
+            # print(osp.join(path, extra_opts.init_pcd_name if extra_opts.init_pcd_name.endswith(".ply") 
+            #                             else extra_opts.init_pcd_name + ".ply"))
+            # exit()
+
+    if hasattr(extra_opts, 'coarse_pcd_name'):
+        if extra_opts.coarse_pcd_name == 'origin':
+            pass # None just skip, use better init.
+        elif extra_opts.coarse_pcd_name == 'random':
+            raise NotImplementedError
+        else:
+            # use specific pointcloud, direct load it
+            pcd = fetchPly(osp.join(extra_opts.coarse_pcd_dir, extra_opts.coarse_pcd_name if extra_opts.coarse_pcd_name.endswith(".ply") 
+                                        else extra_opts.coarse_pcd_name + ".ply"))
+            # print(osp.join(path, extra_opts.init_pcd_name if extra_opts.init_pcd_name.endswith(".ply") 
+            #                             else extra_opts.init_pcd_name + ".ply"))
+            # exit()
 
 
     if hasattr(extra_opts, 'transform_the_world') and extra_opts.transform_the_world:

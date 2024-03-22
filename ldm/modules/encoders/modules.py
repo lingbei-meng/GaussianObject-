@@ -57,7 +57,7 @@ def disabled_train(self, mode=True):
 
 class FrozenT5Embedder(AbstractEncoder):
     """Uses the T5 transformer encoder for text"""
-    def __init__(self, version="google/t5-v1_1-large", device="cuda", max_length=77, freeze=True):  # others are google/t5-v1_1-xl and google/t5-v1_1-xxl
+    def __init__(self, version="/home/pkudba/MaskGaussian/data/t5-v1_1-large", device="cuda", max_length=77, freeze=True):  # others are google/t5-v1_1-xl and google/t5-v1_1-xxl
         super().__init__()
         self.tokenizer = T5Tokenizer.from_pretrained(version)
         self.transformer = T5EncoderModel.from_pretrained(version)
@@ -92,7 +92,7 @@ class FrozenCLIPEmbedder(AbstractEncoder):
         "pooled",
         "hidden"
     ]
-    def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77,
+    def __init__(self, version="/home/pkudba/MaskGaussian/data/clip-vit-large-patch14", device="cuda", max_length=77,
                  freeze=True, layer="last", layer_idx=None):  # clip-vit-base-patch32
         super().__init__()
         assert layer in self.LAYERS

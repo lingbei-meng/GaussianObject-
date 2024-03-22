@@ -32,12 +32,22 @@ TENSORBOARD_FOUND = True
 def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset)
+    # print(dataset.sh_degree)  # 2
+    # exit()
     gaussians = GaussianModel(dataset.sh_degree)
+    # print(vars(gaussians))
+    # exit()
+    print("Construct Scene...")
     scene = Scene(dataset, gaussians, extra_opts=args)
+    # print(vars(gaussians))
+    # exit()
     gaussians.training_setup(opt)
     if checkpoint:
         (model_params, first_iter) = torch.load(checkpoint)
         gaussians.restore(model_params, opt)
+
+    # print(vars(gaussians))
+    # exit()
 
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
@@ -109,6 +119,8 @@ def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, ch
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration)
 
+            # print(vars(gaussians))
+            # exit()
             # Densification
             if iteration < opt.densify_until_iter and num_gauss < opt.max_num_splats:
                 # Keep track of max radii in image-space for pruning
@@ -283,6 +295,10 @@ if __name__ == "__main__":
     # Start GUI server, configure and run training
     network_gui.init(args.ip, args.port)
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
+
+    # print(args.source_path, args.model_path, lp.extract(args).source_path, lp.extract(args).model_path)
+    # exit()
+
     training(args, lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, 
              args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from)
 

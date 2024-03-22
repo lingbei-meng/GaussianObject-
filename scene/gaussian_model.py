@@ -16,7 +16,7 @@ from torch import nn
 import os
 from utils.system_utils import mkdir_p
 from plyfile import PlyData, PlyElement
-from utils.sh_utils import RGB2SH
+from utils.sh_utils import RGB2SH, SH2RGB
 from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud, z_score_from_percentage
 from utils.general_utils import strip_symmetric, build_scaling_rotation
@@ -47,6 +47,7 @@ class GaussianModel:
         self.max_sh_degree = sh_degree  
         self._xyz = torch.empty(0)
         self._features_dc = torch.empty(0)
+        self._color = torch.empty(0)
         self._features_rest = torch.empty(0)
         self._scaling = torch.empty(0)
         self._rotation = torch.empty(0)
@@ -136,7 +137,14 @@ class GaussianModel:
         self.spatial_lr_scale = spatial_lr_scale
         fused_point_cloud = torch.tensor(np.asarray(pcd.points)).float().cuda()
         fused_color = RGB2SH(torch.tensor(np.asarray(pcd.colors)).float().cuda())
+        original_color = torch.tensor(np.asarray(pcd.colors))
+        # print(pcd)
+        # print(fused_point_cloud.shape, fused_color.shape)  # torch.Size([4308, 3]) torch.Size([4308, 3]) 
+        # print(original_color.shape)
+        # exit()
         features = torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2)).float().cuda()
+        # print(features.shape)  # torch.Size([4308, 3, 9])
+        # exit()
         features[:, :3, 0 ] = fused_color
         features[:, 3:, 1:] = 0.0
 
@@ -149,13 +157,22 @@ class GaussianModel:
 
         opacities = inverse_sigmoid(0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
 
+        # print(features.shape)  # torch.Size([4308, 3, 9])
+        # exit()
+
         self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
         self._features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(True))
+        # self._color = original_color
         self._features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(True))
         self._scaling = nn.Parameter(scales.requires_grad_(True))
         self._rotation = nn.Parameter(rots.requires_grad_(True))
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
+        self.original_colors = original_color
+
+        # print(features[:,:,0])
+        # print(self._features_dc.shape, self._xyz.shape, original_color.shape)  # torch.Size([4308, 1, 3]) torch.Size([4308, 3]) torch.Size([4308, 3]) [21/03 19:42:02]
+        # exit()
 
     def training_setup(self, training_args):
         self.percent_dense = training_args.percent_dense
@@ -201,25 +218,83 @@ class GaussianModel:
         for i in range(self._rotation.shape[1]):
             l.append('rot_{}'.format(i))
         return l
+    
+    def construct_list_of_attributes_withcolor(self):
+        l = ['x', 'y', 'z', 'nx', 'ny', 'nz', 'red', 'green', 'blue']
+        # All channels except the 3 DC
+        # for i in range(self._features_dc.shape[1]*self._features_dc.shape[2]):
+        #     l.append('f_dc_{}'.format(i))
+        # for i in range(self._features_rest.shape[1]*self._features_rest.shape[2]):
+        #     l.append('f_rest_{}'.format(i))
+        # l.append('opacity')
+        # for i in range(self._scaling.shape[1]):
+        #     l.append('scale_{}'.format(i))
+        # for i in range(self._rotation.shape[1]):
+        #     l.append('rot_{}'.format(i))
+        return l
 
-    def save_ply(self, path):
+    def convert_ply_color_format(self, input_file_path, output_file_path):
+        with open(input_file_path, 'r', encoding='latin1') as file:
+            lines = file.readlines()
+
+        for i, line in enumerate(lines):
+            if "property float f_dc_0" in line:
+                lines[i] = "property uchar red\n"
+            elif "property float f_dc_1" in line:
+                lines[i] = "property uchar green\n"
+            elif "property float f_dc_2" in line:
+                lines[i] = "property uchar blue\n"
+            elif "end_header" in line:
+                header_end_index = i
+                break
+
+        for i in range(header_end_index + 1, len(lines)):
+            if lines[i].strip() == '':  # 跳过空行
+                continue
+            parts = lines[i].split()
+            if len(parts) > 12:  # 假设有足够的属性存在
+                for j in range(6, 9):  # 颜色值的位置
+                    color_value = float(parts[j]) * 255
+                    parts[j] = str(int(round(color_value)))
+                lines[i] = " ".join(parts)
+        
+        # 保存修改后的文件
+        with open(output_file_path, 'w') as file:
+            file.writelines(lines)
+
+
+    def save_ply(self, path, color=0):
         mkdir_p(os.path.dirname(path))
-
         xyz = self._xyz.detach().cpu().numpy()
         normals = np.zeros_like(xyz)
         f_dc = self._features_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
         f_rest = self._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
         opacities = self._opacity.detach().cpu().numpy()
         scale = self._scaling.detach().cpu().numpy()
-        rotation = self._rotation.detach().cpu().numpy()
+        rotation = self._rotation.detach().cpu().numpy() 
 
         dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
-
-        elements = np.empty(xyz.shape[0], dtype=dtype_full)
-        attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
-        elements[:] = list(map(tuple, attributes))
-        el = PlyElement.describe(elements, 'vertex')
-        PlyData([el]).write(path)
+        if color==0:
+            # print(dtype_full, dtype_full_withcolor)
+            # print(xyz.shape, normals.shape, self.original_colors.shape, f_dc.shape, f_rest.shape, opacities.shape, scale.shape, rotation.shape)
+            # (4308, 3) (4308, 3) torch.Size([4308, 3]) (4308, 3) (4308, 24) (4308, 1) (4308, 3) (4308, 4) [21/03 19:49:17]
+            # exit()
+            elements = np.empty(xyz.shape[0], dtype=dtype_full)
+            attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
+            elements[:] = list(map(tuple, attributes))
+            el = PlyElement.describe(elements, 'vertex')
+            PlyData([el]).write(path)
+        
+        elif color==1:
+            # self.convert_ply_color_format(path, path_withcolor)
+            dtype_full_withcolor = dtype_full[0:6]+[('red', 'u1'), ('green','u1'), ('blue', 'u1')]+dtype_full[6:]
+            elements_withcolor = np.empty(xyz.shape[0], dtype=dtype_full_withcolor)
+            attributes_withcolor = np.concatenate((xyz, normals, SH2RGB(f_dc)*255.0, f_dc, f_rest, opacities, scale, rotation), axis=1)
+            elements_withcolor[:] = list(map(tuple, attributes_withcolor))
+            el_withcolor = PlyElement.describe(elements_withcolor, 'vertex')
+            # path_withcolor = path.replace("input.ply", "input_withcolor.ply")
+            PlyData([el_withcolor]).write(path)
+        
 
     def reset_opacity(self):
         opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity)*0.01))
@@ -228,64 +303,7 @@ class GaussianModel:
 
     def load_ply(self, path, requires_grad: bool = True):
         plydata = PlyData.read(path)
-        print(len(plydata['vertex']))#
-        #exit()
-        from scipy.spatial import KDTree, Voronoi, voronoi_plot_2d
-        from plyfile import PlyElement
-        def farthest_point_sampling(points, M):
-            remaining_points = points.copy()
-            centers = [remaining_points[np.random.randint(len(remaining_points))]]
-            for _ in range(M - 1):
-                dist = np.sum((remaining_points - np.array(centers)[:, None, :])**2, axis=2)
-                farthest_point = remaining_points[np.argmax(np.min(dist, axis=0))]
-                centers.append(farthest_point)
-            return np.array(centers)
 
-        def voronoi_patches(centers, points):
-            vor = Voronoi(centers)
-            tree = KDTree(centers)
-            _, labels = tree.query(points)
-            patches = [points[labels == i] for i in range(len(centers))]
-            return patches
-
-        def random_mask_patches(patches, mask_rate=0.5):
-            masked_points_list = []
-            for patch in patches:
-                mask = np.random.rand(len(patch)) < mask_rate
-                masked_points_list.append(patch[mask])
-            return masked_points_list
-        
-        points = np.column_stack((plydata['vertex']['x'], plydata['vertex']['y'], plydata['vertex']['z']))
-    
-    # FPS to find M center points
-        M = 100
-        centers = farthest_point_sampling(points, M)
-    
-    # Use Voronoi partitions to divide points among centers
-        patches = voronoi_patches(centers, points)
-    
-    # Random mask on patches
-        masked_points_list = random_mask_patches(patches)
-    
-    # Concatenate all masked points from different patches to form new point cloud
-        new_points = np.concatenate(masked_points_list, axis=0)
-    
-    # Create new PLY data
-        #print(new_points[:1])
-        # new_vertex = np.array(new_points, dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
-        # 假设masked_points是一个二维numpy数组，其中每行是一个点的坐标(x, y, z)
-        # 这里直接将masked_points作为新点保存了下来，所以mask_rate要高一点
-        new_vertex = np.array([(point[0], point[1], point[2]) for point in new_points], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
-
-        new_plydata = PlyData([PlyElement.describe(new_vertex, 'vertex')], text=True)
-        plydata = new_plydata
-        # 定义要保存的新PLY文件的路径
-        new_ply_path = '/home/disk2/mlb/2024my_research/GaussianObject/output/gs_init/patch_mask.ply'
-
-        # 使用PlyData.write方法保存new_plydata到文件
-        new_plydata.write(new_ply_path)
-        print(len(plydata['vertex']))#
-        # exit()
         xyz = np.stack((np.asarray(plydata.elements[0]["x"]),
                         np.asarray(plydata.elements[0]["y"]),
                         np.asarray(plydata.elements[0]["z"])),  axis=1)
@@ -320,7 +338,10 @@ class GaussianModel:
         self._xyz = nn.Parameter(torch.tensor(xyz, dtype=torch.float, device="cuda").requires_grad_(requires_grad))
         self._features_dc = nn.Parameter(torch.tensor(features_dc, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(requires_grad))
         self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(requires_grad))
-        self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(requires_grad))
+        
+        # print(opacities.shape)
+        # exit()
+        self._opacity = nn.Parameter(torch.tensor(opacities.copy(), dtype=torch.float, device="cuda").requires_grad_(requires_grad))
         self._scaling = nn.Parameter(torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(requires_grad))
         self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(requires_grad))
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")

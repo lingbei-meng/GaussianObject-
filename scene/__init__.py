@@ -29,9 +29,13 @@ class Scene:
         :param path: Path to colmap scene main folder.
         """
         self.model_path = args.model_path # type: ignore
+        # print(self.model_path)
+        # exit()
         self.loaded_iter = None
         self.gaussians = gaussians
-
+        # print(gaussians)
+        # exit()
+        
         if load_iteration and load_ply is None:
             if load_iteration == -1:
                 self.loaded_iter = searchForMaxIteration(os.path.join(self.model_path, "point_cloud"))
@@ -43,6 +47,8 @@ class Scene:
         self.test_cameras = {}
         self.render_cameras = {}
 
+        # print(args.source_path, args.images, args.eval, extra_opts)  # /home/pkudba/MaskGaussian/data/mip360/kitchen images False
+        # exit()
         if os.path.exists(os.path.join(args.source_path, "sparse")): # type: ignore
             scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, extra_opts=extra_opts) # type: ignore
         elif os.path.exists(os.path.join(args.source_path, "transforms_alignz_train.json")): # type: ignore
@@ -56,6 +62,8 @@ class Scene:
         else:
             assert False, "Could not recognize scene type!"
 
+        # print("stop")
+        # exit()
         if not self.loaded_iter and load_ply is None:
             # NOTE :this dump use the file name, we dump the SceneInfo.pcd as the input.ply
             json_cams = []
@@ -88,27 +96,31 @@ class Scene:
             self.render_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.render_cameras, resolution_scale, args)
             print("Loading render cameras with {}s".format(time.time() - init_time3))
 
+        # print("*******************")
+        # print(self.model_path)
+        # exit()
         # print(self.loaded_iter, load_ply)
         # exit()
-        # coarse guass self.loaded_iter, load_ply均为None
-        # 第一处改动，0 mask fine guass 分别为self.loaded_iter, load_ply 做了两次实验
-        # self.loaded_iter = 100000
-        load_ply = '/content/GaussianObject/output/gs_init/kitchen_fine/point_cloud/iteration_10000/point_cloud.ply'
-        
+        # exit()
         if self.loaded_iter:
             load_name = "point_cloud.ply"
+            # print(os.path.join(self.model_path, "point_cloud", "iteration_" + str(self.loaded_iter), load_name))
+            # exit()
             self.gaussians.load_ply(os.path.join(self.model_path, "point_cloud", "iteration_" + str(self.loaded_iter), load_name))
         elif load_ply:
             self.gaussians.load_ply(load_ply)
             # in this case, we need it to be trainable, so we need to make sure the spatial_lr_scale is not 0
             self.gaussians.spatial_lr_scale = self.cameras_extent
         else:
+            # print(scene_info.point_cloud)
+            # exit()
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
-            self.gaussians.save_ply(os.path.join(self.model_path, "input.ply"))
+            self.gaussians.save_ply(os.path.join(self.model_path, "input.ply"), color=1)
 
     def save(self, iteration):
+        print("save func")
         point_cloud_path = os.path.join(self.model_path, "point_cloud/iteration_{}".format(iteration))
-        self.gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))
+        self.gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"), color=1)
 
     def getTrainCameras(self, scale=1.0):
         return self.train_cameras[scale]
