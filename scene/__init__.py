@@ -19,6 +19,59 @@ from arguments import ModelParams
 from utils.camera_utils import cameraList_from_camInfos, camera_to_JSON
 import time
 
+import numpy as np
+from sklearn.neighbors import NearestNeighbors
+from typing import NamedTuple
+class BasicPointCloud(NamedTuple):
+    points : np.array
+    colors : np.array
+    normals : np.array
+    
+def fps(points, n_centers):
+    """
+    Farthest Point Sampling (FPS) algorithm to select n center points from a point cloud.
+    """
+    # Initialize containers
+    centers = np.zeros((n_centers, points.shape[1]))
+    distances = np.full(points.shape[0], np.inf)
+    
+    # Randomly select the first center
+    first_center = np.random.randint(0, points.shape[0])
+    centers[0] = points[first_center]
+    
+    for i in range(1, n_centers):
+        # Calculate distances from the latest added center and update the minimum distances
+        new_distances = np.linalg.norm(points - centers[i - 1], axis=1)
+        distances = np.minimum(distances, new_distances)
+        
+        # Select the point with the maximum distance as the next center
+        next_center_index = np.argmax(distances)
+        centers[i] = points[next_center_index]
+        
+    return centers
+
+def patch_mask(point_cloud, n_centers, n_delete_rate):
+    """
+    Function to create patch masks, delete a number of patches, and return a new point cloud.
+    """
+    # Step 1: Select n center points using FPS
+    centers = fps(point_cloud.points, n_centers)
+    
+    # Step 2: Use KNN to divide the point cloud into patches based on the n centers
+    nbrs = NearestNeighbors(n_neighbors=1, algorithm='auto').fit(centers)
+    _, indices = nbrs.kneighbors(point_cloud.points)
+    
+    # Step 3: Delete a certain number of patches randomly
+    patches_to_delete = np.random.choice(n_centers, int(n_delete_rate*n_centers), replace=False)
+    mask = np.isin(indices.flatten(), patches_to_delete, invert=True)
+    
+    # Create a new point cloud without the deleted patches
+    new_points = point_cloud.points[mask]
+    new_colors = point_cloud.colors[mask]
+    new_normals = point_cloud.normals[mask]
+    
+    #return new_points, new_colors, new_normals
+    return BasicPointCloud(new_points, new_colors, new_normals)
 
 class Scene:
 
@@ -114,6 +167,14 @@ class Scene:
         else:
             # print(scene_info.point_cloud)
             # exit()
+            # 1 .# fine guassian 输入时对点云进行patchy mask
+            # if extra_opts.coarse_pcd_dir:
+            #     print(extra_opts.coarse_pcd_dir)
+            #     print(scene_info.point_cloud.points.shape)
+            #     #scene_info.point_cloud = patch_mask(scene_info.point_cloud, 100, 0.2)
+            #     new_point_cloud= patch_mask(scene_info.point_cloud, 100, 0.2)  
+            #     print(new_point_cloud.point_cloud.points.shape)          
+            # self.gaussians.create_from_pcd(new_point_cloud, self.cameras_extent)
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
             self.gaussians.save_ply(os.path.join(self.model_path, "input.ply"), color=1)
 

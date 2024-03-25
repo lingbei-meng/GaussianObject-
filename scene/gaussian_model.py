@@ -21,6 +21,7 @@ from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud, z_score_from_percentage
 from utils.general_utils import strip_symmetric, build_scaling_rotation
 import pytorch3d.ops as p3dops
+import random
 
 class GaussianModel:
 
@@ -60,6 +61,43 @@ class GaussianModel:
         self.spatial_lr_scale = 0
         self._backup_attributes = {}
         self.setup_functions()
+        
+        # 假设初始化函数
+        self.sh_degree = sh_degree
+        # 用于跟踪每个点是否被mask的标志
+        self.masked_points = {}
+        # 存储所有高斯点的结构
+        self.all_points = []
+
+    def restore_masked_points(self, iteration):
+        """
+        恢复前t个迭代mask掉的点
+        """
+        # 每个点都有一个唯一标识符（如索引）
+        for point_id, mask_iter in list(self.masked_points.items()):
+            if mask_iter <= iteration:
+                self.all_points[point_id].is_masked = False
+                del self.masked_points[point_id]
+    
+    def select_and_mask_points(self, iteration):
+        """
+        随机选择需要mask的点
+        """
+        
+        num_to_mask = int(len(self.all_points) * 0.1)  # 每次迭代mask 10%的点
+        for _ in range(num_to_mask):
+            point_id = random.choice(range(len(self.all_points)))
+            self.all_points[point_id].is_masked = True
+            self.masked_points[point_id] = iteration + 1
+            
+    def restore_all_masked_points(self):
+        """
+        恢复所有mask掉的点
+        """
+        for point_id in self.masked_points:
+            self.all_points[point_id].is_masked = False
+        self.masked_points.clear()
+    
 
     def capture(self):
         return (

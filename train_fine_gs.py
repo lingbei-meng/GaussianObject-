@@ -25,7 +25,7 @@ from gaussian_renderer import network_gui, render
 from scene import GaussianModel, Scene
 from utils.general_utils import safe_state
 from utils.image_utils import psnr
-from utils.loss_utils import l1_loss, ssim, monodisp
+from utils.loss_utils import l1_loss, ssim, monodisp, l2_loss
 from torch.utils.tensorboard.writer import SummaryWriter
 TENSORBOARD_FOUND = True
 
@@ -38,7 +38,7 @@ def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, ch
     if checkpoint:
         (model_params, first_iter) = torch.load(checkpoint)
         gaussians.restore(model_params, opt)
-
+                
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
@@ -49,7 +49,18 @@ def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, ch
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
-    for iteration in range(first_iter, opt.iterations + 1):        
+    #3. t iteration mask
+    t = 100
+    for iteration in range(first_iter, opt.iterations + 1): 
+        # t iteration mask
+        if iteration % t == 0:
+            gaussians.restore_masked_points(iteration)  # 新加的函数，恢复前t个迭代mask掉的点
+            gaussians.select_and_mask_points(iteration)  # 新加的函数，重新选择需要mask的点
+
+        if iteration > opt.iterations - t:
+            # 在最后t个迭代中，确保所有点都被恢复
+            gaussians.restore_all_masked_points()  # 新加的函数，恢复所有mask掉的点  
+                 
         if network_gui.conn == None:
             network_gui.try_connect()
         while network_gui.conn != None:
@@ -133,6 +144,11 @@ def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, ch
             if (iteration in checkpoint_iterations):
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
                 torch.save((gaussians.capture(), iteration), scene.model_path + "/ckpt" + str(iteration) + ".pth")
+            
+            # # 在最后t个迭代后，使用全量数据进行render
+            # if iteration == opt.iterations:
+            # # 使用未mask的全量数据点云进行渲染
+            #     render_pkg = render(viewpoint_cam, gaussians, pipe, bg)
 
 def prepare_output_and_logger(args):    
     if not args.model_path:
@@ -207,6 +223,11 @@ def cal_loss(opt, args, image, render_pkg, viewpoint_cam, bg, silhouette_loss_ty
     Ll1 = l1_loss(image, gt_image)
     Lssim = (1.0 - ssim(image, gt_image))
     loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * Lssim
+    #2. 添加L2 loss
+    Ll2 = l2_loss(image, gt_image)
+    print(loss, Ll2)# tensor(0.0615, device='cuda:0', grad_fn=<AddBackward0>) tensor(0.0154, device='cuda:0', grad_fn=<MeanBackward0>) 
+    loss = loss + 0.1*Ll2
+    
     if tb_writer is not None:
         tb_writer.add_scalar('loss/l1_loss', Ll1, iteration)
         tb_writer.add_scalar('loss/ssim_loss', Lssim, iteration)
