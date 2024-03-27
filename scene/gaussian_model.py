@@ -62,41 +62,85 @@ class GaussianModel:
         self._backup_attributes = {}
         self.setup_functions()
         
-        # 假设初始化函数
-        self.sh_degree = sh_degree
+        #存储全局变量
+        self.total_xyz = torch.empty(0)
+        self.total_features_dc = torch.empty(0)
+        self.total_color = torch.empty(0)
+        self.total_features_rest = torch.empty(0)
+        self.total_scaling = torch.empty(0)
+        self.total_rotation = torch.empty(0)
+        self.total_opacity = torch.empty(0)
         # 用于跟踪每个点是否被mask的标志
-        self.masked_points = {}
-        # 存储所有高斯点的结构
-        self.all_points = []
+        self._mask_status = torch.zeros(self._xyz.size(0), dtype=torch.int8)#(idx,n) n=0,1,2 每个guass点3种状态：未标记0，正在标记1，标记后被还原2
+        
 
     def restore_masked_points(self, iteration):
-        """
-        恢复前t个迭代mask掉的点
-        """
-        # 每个点都有一个唯一标识符（如索引）
-        for point_id, mask_iter in list(self.masked_points.items()):
-            if mask_iter <= iteration:
-                self.all_points[point_id].is_masked = False
-                del self.masked_points[point_id]
+        """将标记为1的点标记为2。"""
+        self._mask_status[self._mask_status == 1] = 2
     
-    def select_and_mask_points(self, iteration):
-        """
-        随机选择需要mask的点
-        """
+    
+    def select_and_mask_points_random(self, mask_rate):
+        """从所有标记为0的点中随机选取mask_rate%进行mask,标记为1。"""
+        unmasked_indices = torch.where(self._mask_status == 0)[0]
+        num_to_select = int(mask_rate * self._xyz.size(0))
+        selected_indices = unmasked_indices[torch.randperm(len(unmasked_indices))[:num_to_select]]
+        self._mask_status[selected_indices] = 1
+        # 更新属性以排除标记为1的点
+        self._update_attributes_based_on_mask()
         
-        num_to_mask = int(len(self.all_points) * 0.1)  # 每次迭代mask 10%的点
-        for _ in range(num_to_mask):
-            point_id = random.choice(range(len(self.all_points)))
-            self.all_points[point_id].is_masked = True
-            self.masked_points[point_id] = iteration + 1
+        
+    def _fps(self, points, n_centers):
+        N, _ = points.shape
+    # 随机选择一个初始点
+        centers = [torch.randint(0, N, (1,)).item()]
+    # 计算所有点到第一个中心点的距离
+        distances = torch.norm(points - points[centers[0]], dim=1, p=2)
+        for _ in range(1, n_centers):
+        # 选择到现有中心点集合距离最远的点作为新的中心点
+            farthest_point = torch.argmax(distances).item()
+            centers.append(farthest_point)
+        # 更新所有点到中心点集合的最短距离
+            new_distances = torch.norm(points - points[farthest_point], dim=1, p=2)
+            distances = torch.minimum(distances, new_distances)
+        return torch.tensor(centers, dtype=torch.long)
             
+    def select_and_mask_points_patch(self, n_patch, mask_rate):
+        # 步骤1: 使用FPS选择n_patch个中心点
+        from sklearn.cluster import KMeans
+        center_indices = self._fps(self._xyz, n_patch)
+        centers = self._xyz[center_indices]
+
+        # 步骤2: 使用KMeans基于FPS找到的中心点对点云进行分割
+        kmeans = KMeans(n_clusters=n_patch, init=centers.cpu().numpy(), n_init=1)
+        labels = kmeans.fit_predict(self._xyz.cpu().numpy())
+
+        # 步骤3: 选择mask_rate比例的patch进行mask
+        unique_labels = np.unique(labels)
+        n_mask = int(mask_rate * len(unique_labels))
+        mask_labels = np.random.choice(unique_labels, n_mask, replace=False)
+        for label in mask_labels:
+            self._mask_status[labels == label] = 1
+
+        # 更新属性以排除标记为1的点
+        self._update_attributes_based_on_mask()
+                
+                
     def restore_all_masked_points(self):
-        """
-        恢复所有mask掉的点
-        """
-        for point_id in self.masked_points:
-            self.all_points[point_id].is_masked = False
-        self.masked_points.clear()
+        """把所有点标为2，更新变量为全量点。"""
+        self._mask_status[:] = 2
+        # 更新属性以包含所有点
+        self._update_attributes_based_on_mask()
+    
+    def _update_attributes_based_on_mask(self):
+        """根据点的状态更新类属性，排除标为1的点。"""
+        mask = self._mask_status != 1
+        self._xyz = self.total_xyz[mask]
+        self._features_dc = self.total_features_dc[mask]
+        self._color = self.total_color[mask]
+        self._features_rest = self.total_features_rest[mask]
+        self._scaling = self.total_scaling[mask]
+        self._rotation = self.total_rotation[mask]
+        self._opacity = self.total_opacity[mask]
     
 
     def capture(self):
@@ -211,6 +255,16 @@ class GaussianModel:
         # print(features[:,:,0])
         # print(self._features_dc.shape, self._xyz.shape, original_color.shape)  # torch.Size([4308, 1, 3]) torch.Size([4308, 3]) torch.Size([4308, 3]) [21/03 19:42:02]
         # exit()
+        
+        #初始化全局量
+        self.total_xyz = self._xyz
+        self.total_features_dc = self._features_dc
+        self.total_color = self._color
+        self.total_features_rest = self._features_rest
+        self.total_scaling = self._scaling
+        self.total_rotation = self._rotation
+        self.total_opacity = self._opacity
+        self._mask_status = torch.zeros(self._xyz.size(0), dtype=torch.int8)
 
     def training_setup(self, training_args):
         self.percent_dense = training_args.percent_dense
@@ -385,6 +439,16 @@ class GaussianModel:
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
 
         self.active_sh_degree = self.max_sh_degree
+        
+        #初始化全局量
+        self.total_xyz = self._xyz
+        self.total_features_dc = self._features_dc
+        self.total_color = self._color
+        self.total_features_rest = self._features_rest
+        self.total_scaling = self._scaling
+        self.total_rotation = self._rotation
+        self.total_opacity = self._opacity
+        self._mask_status = torch.zeros(self._xyz.size(0), dtype=torch.int8)
 
     def replace_tensor_to_optimizer(self, tensor, name):
         optimizable_tensors = {}

@@ -49,13 +49,16 @@ def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, ch
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
-    #3. t iteration mask
+    #3.27. t iteration mask
     t = 100
     for iteration in range(first_iter, opt.iterations + 1): 
         # t iteration mask
         if iteration % t == 0:
+            #每个guass点3种状态：未标记0，正在标记1，标记后被还原2
+            #1不参与更新
             gaussians.restore_masked_points(iteration)  # 新加的函数，恢复前t个迭代mask掉的点
-            gaussians.select_and_mask_points(iteration)  # 新加的函数，重新选择需要mask的点
+            gaussians.select_and_mask_points_random(0.1)  # 新加的函数，重新选择需要mask的点
+            #gaussians.select_and_mask_points_patch(100,0.2)
 
         if iteration > opt.iterations - t:
             # 在最后t个迭代中，确保所有点都被恢复
@@ -93,7 +96,8 @@ def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, ch
             pipe.debug = True
 
         bg = torch.rand((3), device="cuda") if opt.random_background else background
-
+        
+       
         render_pkg = render(viewpoint_cam, gaussians, pipe, bg)
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], \
             render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
@@ -107,7 +111,7 @@ def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, ch
         with torch.no_grad():
             # Progress bar
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
-            num_gauss = len(gaussians._xyz)
+            num_gauss = len(gaussians._xyz)# xyz代表一个guass点
             if iteration % 10 == 0:
                 progress_bar.set_postfix({'Loss': f"{ema_loss_for_log:.{7}f}",  'n': f"{num_gauss}"})
                 progress_bar.update(10)
@@ -145,10 +149,6 @@ def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, ch
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
                 torch.save((gaussians.capture(), iteration), scene.model_path + "/ckpt" + str(iteration) + ".pth")
             
-            # # 在最后t个迭代后，使用全量数据进行render
-            # if iteration == opt.iterations:
-            # # 使用未mask的全量数据点云进行渲染
-            #     render_pkg = render(viewpoint_cam, gaussians, pipe, bg)
 
 def prepare_output_and_logger(args):    
     if not args.model_path:
@@ -225,7 +225,7 @@ def cal_loss(opt, args, image, render_pkg, viewpoint_cam, bg, silhouette_loss_ty
     loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * Lssim
     #2. 添加L2 loss
     Ll2 = l2_loss(image, gt_image)
-    print(loss, Ll2)# tensor(0.0615, device='cuda:0', grad_fn=<AddBackward0>) tensor(0.0154, device='cuda:0', grad_fn=<MeanBackward0>) 
+    print(loss, Ll2)# tensor(0.0615, device='cuda:0', grad_fn=<AddBackward0>) tensor(0.0154, device='cuda:0', grad_fn=<MeanBackward0>)     
     loss = loss + 0.1*Ll2
     
     if tb_writer is not None:
