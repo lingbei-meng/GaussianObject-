@@ -86,6 +86,8 @@ class Scene:
         # exit()
         self.loaded_iter = None
         self.gaussians = gaussians
+        self.scene_info = None
+        
         # print(gaussians)
         # exit()
         
@@ -116,6 +118,7 @@ class Scene:
             assert False, "Could not recognize scene type!"
 
         # print("stop")
+        self.scene_info = scene_info
         # exit()
         if not self.loaded_iter and load_ply is None:
             # NOTE :this dump use the file name, we dump the SceneInfo.pcd as the input.ply

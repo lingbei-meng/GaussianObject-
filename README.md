@@ -158,3 +158,32 @@ python render.py \
 The rendering results are saved in `output/gs_init/kitchen/fine/test/ours_10000` and `output/gs_init/kitchen/fine/render/ours_10000`.
 
 
+### Fusion network
+
+```sh
+python fusion_network.py -s data/mip360/kitchen\
+ -m output/gs_init/kitchen/fusion_result -r 4   \
+   --sparse_view_num 4 --sh_degree 2     --coarse_pcd_name point_cloud  \
+      --white_background --random_background    \
+       --coarse_pcd_dir /content/GaussianObject-/output/gs_init/kitchen/point_cloud/iteration_7000
+
+```
+
+```sh
+# render the test set
+python render.py \
+    -m output/gs_init/kitchen/fusion_result\
+    --sparse_view_num 4 --sh_degree 2 \
+    --white_background --skip_all --skip_train\
+    --iteration 7000
+
+# render the path
+python render.py \
+    -m output/gs_init/kitchen/fusion_result\
+    --sparse_view_num 4 --sh_degree 2 \
+    --white_background --render_path \
+    --iteration 7000
+
+
+
+```
